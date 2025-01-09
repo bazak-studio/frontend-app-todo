@@ -70,7 +70,7 @@ export function About() {
           </p>
         </div>
         <div className="grid md:grid-cols-3 gap-8">
-          {team.map((member) => (
+          {team.map((member, index) => (
             <motion.div
               key={member.name}
               initial={{ opacity: 0, y: 20 }}

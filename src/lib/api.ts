@@ -6,8 +6,18 @@ import type {
   PaginatedResponse,
   AuthResponse,
   ApiResponse,
-  ApiError,
 } from './api-types';
+
+export class ApiError extends Error {
+  constructor(
+    message: string,
+    public status: number,
+    public code: string
+  ) {
+    super(message);
+    this.name = 'ApiError';
+  }
+}
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000/api/v1';
 

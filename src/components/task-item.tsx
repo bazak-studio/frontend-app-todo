@@ -22,8 +22,6 @@ import {
   GripVertical,
   Calendar,
   Tag,
-  Check,
-  Trash2,
 } from 'lucide-react';
 
 interface TaskItemProps {
@@ -78,7 +76,6 @@ export function TaskItem({
   id,
   title,
   description,
-  status,
   priority,
   dueDate,
   categories = [],
