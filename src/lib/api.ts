@@ -11,7 +11,7 @@ import type {
 } from './api-types';
 import { useAuthStore } from '@/stores/auth-store';
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000/api/v1';
+const API_URL = import.meta.env.VITE_API_URL || 'https://api.todo-app.dev.bazak.co';
 
 class ApiError extends Error {
   constructor(
