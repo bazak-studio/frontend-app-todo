@@ -5,10 +5,15 @@ import type {
   PaginationParams,
   PaginatedResponse,
   AuthResponse,
+  LoginRequest,
+  RegisterRequest,
   ApiResponse,
 } from './api-types';
+import { useAuthStore } from '@/stores/auth-store';
 
-export class ApiError extends Error {
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000/api/v1';
+
+class ApiError extends Error {
   constructor(
     message: string,
     public status: number,
@@ -19,11 +24,13 @@ export class ApiError extends Error {
   }
 }
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000/api/v1';
-
 async function handleResponse<T>(response: Response): Promise<T> {
   if (!response.ok) {
     const error = await response.json();
+    if (response.status === 401) {
+      // Clear auth state on unauthorized
+      useAuthStore.getState().clearAuth();
+    }
     throw new ApiError(
       error.message || 'An error occurred',
       response.status,
@@ -37,42 +44,90 @@ async function fetchApi<T>(
   endpoint: string,
   options: RequestInit = {}
 ): Promise<T> {
-  const token = localStorage.getItem('auth_token');
+  const { token } = useAuthStore.getState();
   const headers: HeadersInit = {
     'Content-Type': 'application/json',
     ...(token && { Authorization: `Bearer ${token}` }),
     ...options.headers,
   };
 
-  const response = await fetch(`${API_URL}${endpoint}`, {
-    ...options,
-    headers,
-  });
+  try {
+    const response = await fetch(`${API_URL}${endpoint}`, {
+      ...options,
+      headers,
+    });
 
-  return handleResponse<T>(response);
+    return handleResponse<T>(response);
+  } catch (error) {
+    if (error instanceof ApiError && error.status === 401) {
+      // Try to refresh token
+      const { refreshToken } = useAuthStore.getState();
+      if (refreshToken) {
+        try {
+          const { token: newToken } = await auth.refreshToken(refreshToken);
+          useAuthStore.getState().setAuth(
+            useAuthStore.getState().user!,
+            newToken,
+            refreshToken
+          );
+          
+          // Retry original request with new token
+          const retryResponse = await fetch(`${API_URL}${endpoint}`, {
+            ...options,
+            headers: {
+              ...headers,
+              Authorization: `Bearer ${newToken}`,
+            },
+          });
+          
+          return handleResponse<T>(retryResponse);
+        } catch (refreshError) {
+          // If refresh fails, clear auth and throw original error
+          useAuthStore.getState().clearAuth();
+          throw error;
+        }
+      }
+    }
+    throw error;
+  }
 }
 
-// Auth API
+// Auth endpoints
 export const auth = {
-  register: (email: string, password: string): Promise<ApiResponse<AuthResponse>> =>
-    fetchApi('/auth/register', {
+  register: async (data: RegisterRequest): Promise<AuthResponse> => {
+    const response = await fetchApi<AuthResponse>('/auth/register', {
       method: 'POST',
-      body: JSON.stringify({ email, password }),
-    }),
+      body: JSON.stringify(data),
+    });
+    return response;
+  },
 
-  login: (email: string, password: string): Promise<ApiResponse<AuthResponse>> =>
-    fetchApi('/auth/login', {
+  login: async (data: LoginRequest): Promise<AuthResponse> => {
+    const response = await fetchApi<AuthResponse>('/auth/login', {
       method: 'POST',
-      body: JSON.stringify({ email, password }),
-    }),
+      body: JSON.stringify(data),
+    });
+    return response;
+  },
 
-  refreshToken: (): Promise<ApiResponse<{ token: string }>> =>
-    fetchApi('/auth/refresh', {
+  refreshToken: async (refreshToken: string): Promise<{ token: string }> => {
+    const response = await fetchApi<{ token: string }>('/auth/refresh', {
       method: 'POST',
-    }),
+      body: JSON.stringify({ refreshToken }),
+    });
+    return response;
+  },
+
+  logout: async (refreshToken: string): Promise<void> => {
+    await fetchApi('/auth/logout', {
+      method: 'POST',
+      body: JSON.stringify({ refreshToken }),
+    });
+    useAuthStore.getState().clearAuth();
+  },
 };
 
-// Todos API
+// Todos endpoints
 export const todos = {
   list: (
     filters?: TodoFilters,
@@ -110,7 +165,7 @@ export const todos = {
     }),
 };
 
-// Categories API
+// Categories endpoints
 export const categories = {
   list: (): Promise<ApiResponse<Category[]>> =>
     fetchApi('/categories'),
@@ -119,5 +174,16 @@ export const categories = {
     fetchApi('/categories', {
       method: 'POST',
       body: JSON.stringify({ name }),
+    }),
+
+  update: (id: string, category: Partial<Category>): Promise<ApiResponse<Category>> =>
+    fetchApi(`/categories/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(category),
+    }),
+
+  delete: (id: string): Promise<ApiResponse<void>> =>
+    fetchApi(`/categories/${id}`, {
+      method: 'DELETE',
     }),
 };

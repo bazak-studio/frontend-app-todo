@@ -1,97 +1,102 @@
 import { create } from 'zustand';
+import { todos as todosApi } from '@/lib/api';
+import type { Todo, TodoFilters, PaginationParams } from '@/lib/api-types';
 
-interface Todo {
-  id: string;
-  title: string;
-  description?: string;
-  status: 'pending' | 'in_progress' | 'completed';
-  priority: number;
-  dueDate?: string;
-  completed: boolean;
-  categories?: string[];
-}
-
-interface TodoStore {
+interface TodoState {
   todos: Todo[];
-  addTodo: (todo: Partial<Todo>) => void;
-  toggleTodo: (id: string) => void;
-  updateTodo: (id: string, updates: Partial<Todo>) => void;
-  deleteTodo: (id: string) => void;
-  reorderTodos: (startIndex: number, endIndex: number) => void;
+  isLoading: boolean;
+  error: string | null;
+  filters: TodoFilters;
+  pagination: Required<PaginationParams>;
+  total: number;
+  fetchTodos: () => Promise<void>;
+  addTodo: (todo: Omit<Todo, 'id' | 'userId' | 'createdAt' | 'updatedAt'>) => Promise<void>;
+  updateTodo: (id: string, updates: Partial<Todo>) => Promise<void>;
+  deleteTodo: (id: string) => Promise<void>;
+  setFilters: (filters: TodoFilters) => void;
+  setPagination: (pagination: Partial<PaginationParams>) => void;
 }
 
-export const useTodoStore = create<TodoStore>((set) => ({
-  todos: [
-    {
-      id: '1',
-      title: 'Complete project proposal',
-      description: 'Write and submit the project proposal for the new client',
-      status: 'in_progress',
-      priority: 1,
-      dueDate: '2024-03-20T00:00:00Z',
-      completed: false,
-      categories: ['Work', 'Important'],
-    },
-    {
-      id: '2',
-      title: 'Buy groceries',
-      status: 'pending',
-      priority: 3,
-      completed: false,
-      categories: ['Personal'],
-    },
-    {
-      id: '3',
-      title: 'Schedule team meeting',
-      description: 'Coordinate with team members for the weekly sync',
-      status: 'completed',
-      priority: 2,
-      dueDate: '2024-03-15T00:00:00Z',
-      completed: true,
-      categories: ['Work', 'Meeting'],
-    },
-  ],
-  addTodo: (todo) =>
-    set((state) => ({
-      todos: [
-        ...state.todos,
-        {
-          id: crypto.randomUUID(),
-          title: '',
-          status: 'pending',
-          priority: 3,
-          completed: false,
-          ...todo,
-        },
-      ],
-    })),
-  toggleTodo: (id) =>
-    set((state) => ({
-      todos: state.todos.map((todo) =>
-        todo.id === id
-          ? {
-              ...todo,
-              completed: !todo.completed,
-              status: !todo.completed ? 'completed' : 'pending',
-            }
-          : todo
-      ),
-    })),
-  updateTodo: (id, updates) =>
-    set((state) => ({
-      todos: state.todos.map((todo) =>
-        todo.id === id ? { ...todo, ...updates } : todo
-      ),
-    })),
-  deleteTodo: (id) =>
-    set((state) => ({
-      todos: state.todos.filter((todo) => todo.id !== id),
-    })),
-  reorderTodos: (startIndex, endIndex) =>
-    set((state) => {
-      const newTodos = Array.from(state.todos);
-      const [removed] = newTodos.splice(startIndex, 1);
-      newTodos.splice(endIndex, 0, removed);
-      return { todos: newTodos };
-    }),
+export const useTodoStore = create<TodoState>((set, get) => ({
+  todos: [],
+  isLoading: false,
+  error: null,
+  filters: {},
+  pagination: {
+    page: 1,
+    limit: 10,
+  },
+  total: 0,
+
+  fetchTodos: async () => {
+    try {
+      set({ isLoading: true, error: null });
+      const { data, total, page, limit } = await todosApi.list(
+        get().filters,
+        get().pagination
+      );
+      set({
+        todos: data,
+        total,
+        pagination: { page, limit },
+        isLoading: false,
+      });
+    } catch (error) {
+      set({
+        error: error instanceof Error ? error.message : 'Failed to fetch todos',
+        isLoading: false,
+      });
+    }
+  },
+
+  addTodo: async (todo) => {
+    try {
+      set({ isLoading: true, error: null });
+      await todosApi.create(todo);
+      await get().fetchTodos();
+    } catch (error) {
+      set({
+        error: error instanceof Error ? error.message : 'Failed to add todo',
+        isLoading: false,
+      });
+    }
+  },
+
+  updateTodo: async (id, updates) => {
+    try {
+      set({ isLoading: true, error: null });
+      await todosApi.update(id, updates);
+      await get().fetchTodos();
+    } catch (error) {
+      set({
+        error: error instanceof Error ? error.message : 'Failed to update todo',
+        isLoading: false,
+      });
+    }
+  },
+
+  deleteTodo: async (id) => {
+    try {
+      set({ isLoading: true, error: null });
+      await todosApi.delete(id);
+      await get().fetchTodos();
+    } catch (error) {
+      set({
+        error: error instanceof Error ? error.message : 'Failed to delete todo',
+        isLoading: false,
+      });
+    }
+  },
+
+  setFilters: (filters) => {
+    set({ filters: { ...get().filters, ...filters } });
+    get().fetchTodos();
+  },
+
+  setPagination: (pagination) => {
+    set({
+      pagination: { ...get().pagination, ...pagination },
+    });
+    get().fetchTodos();
+  },
 }));
