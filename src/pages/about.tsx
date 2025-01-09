@@ -48,7 +48,7 @@ export function About() {
           whileInView={{ opacity: 1, x: 0 }}
           className="grid grid-cols-2 gap-4"
         >
-          {stats.map((stat, index) => (
+          {stats.map((stat) => (
             <div
               key={stat.label}
               className="p-6 bg-card rounded-lg border text-center"
@@ -70,7 +70,7 @@ export function About() {
           </p>
         </div>
         <div className="grid md:grid-cols-3 gap-8">
-          {team.map((member, index) => (
+          {team.map((member) => (
             <motion.div
               key={member.name}
               initial={{ opacity: 0, y: 20 }}

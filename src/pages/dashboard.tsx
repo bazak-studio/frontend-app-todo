@@ -30,7 +30,6 @@ import { Plus, Search } from 'lucide-react';
 import { TaskItem } from '@/components/task-item';
 import { TaskEditModal } from '@/components/task-edit-modal';
 import { useTodoStore } from '@/stores/todo-store';
-import { useMediaQuery } from '@/hooks/use-media-query';
 import { toast } from 'sonner';
 
 export function Dashboard() {
@@ -41,7 +40,6 @@ export function Dashboard() {
   }>({});
   const [editingTask, setEditingTask] = useState<string | null>(null);
   const [activeId, setActiveId] = useState<string | null>(null);
-  const isSmallScreen = useMediaQuery('(max-width: 640px)');
 
   const {
     todos,

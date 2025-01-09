@@ -22,7 +22,8 @@ import {
   GripVertical,
   Calendar,
   Tag,
-  AlertCircle,
+  Check,
+  Trash2,
 } from 'lucide-react';
 
 interface TaskItemProps {
